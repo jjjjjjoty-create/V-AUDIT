@@ -131,7 +131,7 @@ score_justification
 """
 
 
-def parse_result(raw_text: str) -> AuditResult:
+def parse_result(raw_text: str):
 
     cleaned = clean_json_text(
         raw_text
@@ -148,7 +148,12 @@ def parse_result(raw_text: str) -> AuditResult:
             f"Gemini вернул некорректный JSON: {error}"
         )
 
+    data = normalize_result_data(
+        data
+    )
+
     try:
+
         result = AuditResult.model_validate(
             data
         )
@@ -161,6 +166,73 @@ def parse_result(raw_text: str) -> AuditResult:
         )
 
     return result
+
+
+def normalize_result_data(data: dict):
+
+    principle_names = [
+        "composition",
+        "balance",
+        "proportion_scale",
+
+        "visual_hierarchy",
+        "focal_point",
+        "contrast",
+
+        "negative_space",
+        "alignment",
+        "proximity_grouping",
+
+        "typography",
+        "color",
+        "readability_accessibility",
+
+        "repetition_rhythm",
+        "unity_coherence",
+        "communication_effectiveness",
+    ]
+
+    for name in principle_names:
+
+        principle = data.get(name)
+
+        if not isinstance(
+            principle,
+            dict
+        ):
+            continue
+
+        evidence = principle.get(
+            "evidence"
+        )
+
+        # Gemini иногда возвращает
+        # одну строку вместо списка.
+        if isinstance(
+            evidence,
+            str
+        ):
+
+            principle["evidence"] = [
+                evidence
+            ]
+
+        # Если evidence отсутствует
+        # или имеет неожиданный формат.
+        elif not isinstance(
+            evidence,
+            list
+        ):
+
+            principle["evidence"] = []
+
+        # Приводим элементы списка к строкам.
+        principle["evidence"] = [
+            str(item)
+            for item in principle["evidence"]
+        ]
+
+    return data
 
 
 def clean_json_text(text: str) -> str:
