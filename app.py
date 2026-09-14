@@ -33,7 +33,6 @@ st.markdown(
     .block-container {
         max-width: 1200px;
         padding-top: 3rem;
-        padding-bottom: 5rem;
     }
 
     h1 {
@@ -79,6 +78,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
 st.markdown(
     """
     <div class="info-box">
@@ -103,11 +103,11 @@ st.markdown(
 # ============================================================
 
 st.subheader(
-    "Communication Context"
+    "Коммуникативная задача"
 )
 
 communication_goal = st.text_area(
-    "What should this visual communicate?",
+    "Что должен сообщать этот визуал?",
     placeholder=(
         "Например: привлечь внимание к мероприятию, "
         "сообщить дату и место проведения, "
@@ -116,8 +116,9 @@ communication_goal = st.text_area(
     height=100
 )
 
+
 target_action = st.text_input(
-    "What should the viewer do?",
+    "Какое действие должен совершить зритель?",
     placeholder=(
         "Например: зарегистрироваться, "
         "купить товар, перейти по ссылке."
@@ -130,7 +131,7 @@ target_action = st.text_input(
 # ============================================================
 
 uploaded_file = st.file_uploader(
-    "Upload graphic material",
+    "Загрузите графический материал",
     type=[
         "jpg",
         "jpeg",
@@ -161,7 +162,7 @@ if uploaded_file:
     )
 
     if st.button(
-        "🔍 Run Visual Audit",
+        "🔍 Провести визуальный аудит",
         type="primary"
     ):
 
@@ -202,14 +203,10 @@ if "audit_result" in st.session_state:
         "audit_result"
     ]
 
-    # ========================================================
-    # SCORES
-    # ========================================================
-
     st.divider()
 
     st.header(
-        "Overall Assessment"
+        "Итоговая оценка"
     )
 
     col1, col2 = st.columns(2)
@@ -236,92 +233,97 @@ if "audit_result" in st.session_state:
     st.divider()
 
     st.header(
-        "Analysis by 15 Principles"
+        "Анализ по 15 критериям"
     )
 
     st.caption(
         "Каждая оценка сопровождается наблюдением, "
-        "визуальными доказательствами, объяснением "
-        "значения и влияния на восприятие."
+        "визуальными доказательствами и объяснением "
+        "влияния на восприятие."
     )
 
 
     principles = [
 
+        # Композиционная организация
         (
-            "Composition",
+            "Композиция",
             result.composition
         ),
 
         (
-            "Visual Hierarchy",
-            result.visual_hierarchy
-        ),
-
-        (
-            "Balance",
+            "Баланс",
             result.balance
         ),
 
         (
-            "Contrast",
-            result.contrast
+            "Пропорции и масштаб",
+            result.proportion_scale
+        ),
+
+        # Иерархия и внимание
+        (
+            "Визуальная иерархия",
+            result.visual_hierarchy
         ),
 
         (
-            "Typography",
-            result.typography
-        ),
-
-        (
-            "Color",
-            result.color
-        ),
-
-        (
-            "Negative Space",
-            result.negative_space
-        ),
-
-        (
-            "Alignment",
-            result.alignment
-        ),
-
-        (
-            "Proximity & Grouping",
-            result.proximity_grouping
-        ),
-
-        (
-            "Repetition & Rhythm",
-            result.repetition_rhythm
-        ),
-
-        (
-            "Unity & Coherence",
-            result.unity_coherence
-        ),
-
-        (
-            "Readability & Accessibility",
-            result.readability_accessibility
-        ),
-
-        (
-            "Focal Point",
+            "Фокусная точка",
             result.focal_point
         ),
 
         (
-            "Proportion & Scale",
-            result.proportion_scale
+            "Контраст",
+            result.contrast
+        ),
+
+        # Пространственная организация
+        (
+            "Негативное пространство",
+            result.negative_space
         ),
 
         (
-            "Communication Effectiveness",
+            "Выравнивание",
+            result.alignment
+        ),
+
+        (
+            "Близость и группировка",
+            result.proximity_grouping
+        ),
+
+        # Визуальные средства
+        (
+            "Типографика",
+            result.typography
+        ),
+
+        (
+            "Цвет",
+            result.color
+        ),
+
+        (
+            "Читаемость и доступность",
+            result.readability_accessibility
+        ),
+
+        # Целостность и коммуникация
+        (
+            "Повтор и ритм",
+            result.repetition_rhythm
+        ),
+
+        (
+            "Единство и визуальная согласованность",
+            result.unity_coherence
+        ),
+
+        (
+            "Коммуникативная эффективность",
             result.communication_effectiveness
-        )
+        ),
     ]
 
 
@@ -337,7 +339,6 @@ if "audit_result" in st.session_state:
 
             st.write(
                 principle.observation
-                or "Недостаточно данных."
             )
 
 
@@ -366,7 +367,6 @@ if "audit_result" in st.session_state:
 
             st.write(
                 principle.rationale
-                or "Обоснование не указано."
             )
 
 
@@ -376,7 +376,6 @@ if "audit_result" in st.session_state:
 
             st.write(
                 principle.perceptual_effect
-                or "Влияние не указано."
             )
 
 
@@ -397,7 +396,6 @@ if "audit_result" in st.session_state:
 
             st.write(
                 principle.score_justification
-                or "Обоснование оценки не указано."
             )
 
 
@@ -412,187 +410,131 @@ if "audit_result" in st.session_state:
                 )
 
 
-# ============================================================
-# PRIORITY ISSUES
-# ============================================================
+            st.caption(
+                f"Статус критерия: {principle.status}"
+            )
+
+
+    # ========================================================
+    # PRIORITY ISSUES
+    # ========================================================
 
     st.divider()
 
     st.header(
-        "Priority Issues"
+        "Приоритетные проблемы"
     )
 
-    if result.priority_issues:
+    for issue in result.priority_issues:
 
-        for issue in result.priority_issues:
+        with st.container(
+            border=True
+        ):
 
-            priority = (
-                issue.priority
-                or "medium"
-            ).upper()
+            st.subheader(
+                f"{issue.priority.upper()} — "
+                f"{issue.principle}"
+            )
 
-            with st.container(
-                border=True
-            ):
+            st.write(
+                f"**Проблема:** {issue.issue}"
+            )
 
-                st.subheader(
-                    f"{priority} — "
-                    f"{issue.principle}"
-                )
+            st.write(
+                f"**Доказательство:** "
+                f"{issue.evidence}"
+            )
 
-                if issue.issue:
+            st.write(
+                f"**Влияние на восприятие:** "
+                f"{issue.perceptual_impact}"
+            )
 
-                    st.write(
-                        f"**Проблема:** "
-                        f"{issue.issue}"
-                    )
-
-                if issue.evidence:
-
-                    st.write(
-                        f"**Доказательство:** "
-                        f"{issue.evidence}"
-                    )
-
-                if issue.perceptual_impact:
-
-                    st.write(
-                        f"**Влияние на восприятие:** "
-                        f"{issue.perceptual_impact}"
-                    )
-
-                if issue.action:
-
-                    st.write(
-                        f"**Что сделать:** "
-                        f"{issue.action}"
-                    )
-
-    else:
-
-        st.success(
-            "Существенных приоритетных проблем не обнаружено."
-        )
+            st.write(
+                f"**Что сделать:** "
+                f"{issue.action}"
+            )
 
 
-# ============================================================
-# STRENGTHS
-# ============================================================
+    # ========================================================
+    # STRENGTHS
+    # ========================================================
 
     st.divider()
 
     st.header(
-        "Strengths"
+        "Сильные стороны"
     )
 
-    if result.strengths:
+    for strength in result.strengths:
 
-        for strength in result.strengths:
-
-            st.markdown(
-                f"✓ {strength}"
-            )
-
-    else:
-
-        st.write(
-            "Сильные стороны не были выделены."
+        st.markdown(
+            f"✓ {strength}"
         )
 
 
-# ============================================================
-# TOP PROBLEMS
-# ============================================================
+    # ========================================================
+    # TOP PROBLEMS
+    # ========================================================
 
     st.header(
-        "3 Main Problems"
+        "3 главные проблемы"
     )
 
-    if result.most_important_problems:
+    for problem in result.most_important_problems:
 
-        for problem in result.most_important_problems:
-
-            st.markdown(
-                f"• {problem}"
-            )
-
-    else:
-
-        st.write(
-            "Существенные проблемы не определены."
+        st.markdown(
+            f"• {problem}"
         )
 
 
-# ============================================================
-# RECOMMENDATIONS
-# ============================================================
+    # ========================================================
+    # RECOMMENDATIONS
+    # ========================================================
 
     st.header(
-        "3 Concrete Recommendations"
+        "3 конкретных рекомендации"
     )
 
-    if result.concrete_recommendations:
+    for recommendation in result.concrete_recommendations:
 
-        for recommendation in result.concrete_recommendations:
-
-            st.markdown(
-                f"→ {recommendation}"
-            )
-
-    else:
-
-        st.write(
-            "Рекомендации не сформированы."
+        st.markdown(
+            f"→ {recommendation}"
         )
 
 
-# ============================================================
-# IMPROVEMENT PROMPT
-# ============================================================
+    # ========================================================
+    # IMPROVEMENT PROMPT
+    # ========================================================
 
     st.divider()
 
     st.header(
-        "Professional Redesign Prompt"
+        "Промпт для профессионального редизайна"
     )
 
     st.caption(
-        "Промпт формируется на основе выявленных "
-        "проблем и предназначен для содержательного "
-        "редизайна, а не косметического улучшения."
+        "Промпт сформирован на основе выявленных "
+        "проблем. Он предназначен не для косметического "
+        "улучшения, а для устранения причин визуальной "
+        "неэффективности."
     )
 
-    if result.improvement_prompt:
-
-        st.code(
-            result.improvement_prompt,
-            language="text"
-        )
-
-    else:
-
-        st.warning(
-            "Промпт для редизайна не сформирован."
-        )
+    st.code(
+        result.improvement_prompt,
+        language="text"
+    )
 
 
-# ============================================================
-# DESIGNER BRIEF
-# ============================================================
+    # ========================================================
+    # DESIGNER BRIEF
+    # ========================================================
 
     st.header(
-        "Designer Brief"
+        "Задание дизайнеру"
     )
 
-    if result.designer_brief:
-
-        st.code(
-            result.designer_brief,
-            language="text"
-        )
-
-    else:
-
-        st.warning(
-            "Designer Brief не сформирован."
-        )
+    st.code(
+        result.designer_brief,
+        language="text"
+    )
