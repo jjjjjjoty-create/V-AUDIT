@@ -12,17 +12,27 @@ from schemas import AuditResult
 MODEL = "gemini-2.5-flash"
 
 
+# ============================================================
+# GEMINI CLIENT
+# ============================================================
+
 def get_client():
+
     return genai.Client(
         api_key=st.secrets["GEMINI_API_KEY"]
     )
 
+
+# ============================================================
+# MAIN ANALYSIS
+# ============================================================
 
 def analyze_image(
     image_bytes: bytes,
     communication_goal: str = "",
     target_action: str = ""
 ):
+
     client = get_client()
 
     image_part = types.Part.from_bytes(
@@ -49,24 +59,39 @@ def analyze_image(
     )
 
     if not response.text:
+
         raise ValueError(
             "Gemini не вернул результат."
         )
+
+    # --------------------------------------------------------
+    # Получаем JSON
+    # --------------------------------------------------------
 
     result = parse_result(
         response.text
     )
 
-    result.overall_design_score = calculate_design_score(
-        result
+    # --------------------------------------------------------
+    # Рассчитываем итоговые показатели
+    # --------------------------------------------------------
+
+    result.overall_design_score = (
+        calculate_design_score(result)
     )
 
-    result.communication_score = normalize_score(
-        result.communication_effectiveness.score
+    result.communication_score = (
+        normalize_score(
+            result.communication_effectiveness.score
+        )
     )
 
     return result
 
+
+# ============================================================
+# USER PROMPT
+# ============================================================
 
 def build_user_prompt(
     communication_goal: str = "",
@@ -87,7 +112,7 @@ def build_user_prompt(
 
     return f"""
 Проведи полный структурированный аудит
-предоставленного визуального материала.
+предоставленного графического материала.
 
 КОММУНИКАТИВНАЯ ЗАДАЧА:
 {goal}
@@ -112,6 +137,9 @@ problem
 recommendation
 score_justification
 
+Для evidence допустимы как одна конкретная
+строка-доказательство, так и список доказательств.
+
 Верни:
 
 - ровно 3 strengths;
@@ -121,15 +149,26 @@ score_justification
 - improvement_prompt;
 - designer_brief.
 
-Не возвращай overall_design_score.
+designer_brief может быть как обычным текстом,
+так и структурированным объектом.
 
-Не возвращай communication_score.
+Не возвращай:
 
-Эти значения рассчитываются программой.
+overall_design_score
+communication_score
+
+Эти показатели рассчитываются программой.
+
+Не добавляй никаких комментариев
+вне JSON.
 
 Верни только JSON.
 """
 
+
+# ============================================================
+# PARSE GEMINI RESULT
+# ============================================================
 
 def parse_result(raw_text: str):
 
@@ -138,6 +177,7 @@ def parse_result(raw_text: str):
     )
 
     try:
+
         data = json.loads(
             cleaned
         )
@@ -145,8 +185,13 @@ def parse_result(raw_text: str):
     except json.JSONDecodeError as error:
 
         raise ValueError(
-            f"Gemini вернул некорректный JSON: {error}"
+            "Gemini вернул некорректный JSON: "
+            f"{error}"
         )
+
+    # --------------------------------------------------------
+    # Нормализуем ответ ДО Pydantic
+    # --------------------------------------------------------
 
     data = normalize_result_data(
         data
@@ -168,9 +213,16 @@ def parse_result(raw_text: str):
     return result
 
 
-def normalize_result_data(data: dict):
+# ============================================================
+# NORMALIZATION
+# ============================================================
+
+def normalize_result_data(
+    data: dict
+):
 
     principle_names = [
+
         "composition",
         "balance",
         "proportion_scale",
@@ -192,6 +244,11 @@ def normalize_result_data(data: dict):
         "communication_effectiveness",
     ]
 
+
+    # --------------------------------------------------------
+    # Нормализуем 15 принципов
+    # --------------------------------------------------------
+
     for name in principle_names:
 
         principle = data.get(name)
@@ -202,13 +259,52 @@ def normalize_result_data(data: dict):
         ):
             continue
 
+
+        # ====================================================
+        # SCORE
+        # ====================================================
+
+        principle["score"] = normalize_score(
+            principle.get(
+                "score",
+                50
+            )
+        )
+
+
+        # ====================================================
+        # STATUS
+        # ====================================================
+
+        status = principle.get(
+            "status",
+            "applicable"
+        )
+
+        if status not in [
+            "applicable",
+            "limited",
+            "not_applicable"
+        ]:
+
+            status = "applicable"
+
+        principle["status"] = status
+
+
+        # ====================================================
+        # EVIDENCE
+        # ====================================================
+
         evidence = principle.get(
             "evidence"
         )
 
-        # Gemini иногда возвращает
-        # одну строку вместо списка.
-        if isinstance(
+        if evidence is None:
+
+            principle["evidence"] = []
+
+        elif isinstance(
             evidence,
             str
         ):
@@ -217,29 +313,308 @@ def normalize_result_data(data: dict):
                 evidence
             ]
 
-        # Если evidence отсутствует
-        # или имеет неожиданный формат.
-        elif not isinstance(
+        elif isinstance(
             evidence,
             list
         ):
 
-            principle["evidence"] = []
+            principle["evidence"] = [
+                str(item)
+                for item in evidence
+                if item is not None
+            ]
 
-        # Приводим элементы списка к строкам.
-        principle["evidence"] = [
-            str(item)
-            for item in principle["evidence"]
+        else:
+
+            principle["evidence"] = [
+                str(evidence)
+            ]
+
+
+        # ====================================================
+        # TEXT FIELDS
+        # ====================================================
+
+        text_fields = [
+
+            "observation",
+            "rationale",
+            "perceptual_effect",
+            "score_justification",
         ]
+
+        for field in text_fields:
+
+            value = principle.get(
+                field,
+                ""
+            )
+
+            principle[field] = (
+                convert_to_text(value)
+            )
+
+
+        # ====================================================
+        # OPTIONAL FIELDS
+        # ====================================================
+
+        for field in [
+            "problem",
+            "recommendation"
+        ]:
+
+            value = principle.get(
+                field
+            )
+
+            if value is None:
+
+                principle[field] = None
+
+            else:
+
+                principle[field] = (
+                    convert_to_text(value)
+                )
+
+
+    # ========================================================
+    # PRIORITY ISSUES
+    # ========================================================
+
+    priority_issues = data.get(
+        "priority_issues",
+        []
+    )
+
+    if not isinstance(
+        priority_issues,
+        list
+    ):
+
+        priority_issues = []
+
+    normalized_issues = []
+
+    for issue in priority_issues:
+
+        if not isinstance(
+            issue,
+            dict
+        ):
+            continue
+
+        normalized_issues.append({
+
+            "priority": convert_to_text(
+                issue.get(
+                    "priority",
+                    "medium"
+                )
+            ),
+
+            "principle": convert_to_text(
+                issue.get(
+                    "principle",
+                    ""
+                )
+            ),
+
+            "issue": convert_to_text(
+                issue.get(
+                    "issue",
+                    ""
+                )
+            ),
+
+            "evidence": convert_to_text(
+                issue.get(
+                    "evidence",
+                    ""
+                )
+            ),
+
+            "perceptual_impact": convert_to_text(
+                issue.get(
+                    "perceptual_impact",
+                    ""
+                )
+            ),
+
+            "action": convert_to_text(
+                issue.get(
+                    "action",
+                    ""
+                )
+            )
+        })
+
+    data["priority_issues"] = normalized_issues
+
+
+    # ========================================================
+    # LISTS
+    # ========================================================
+
+    for field in [
+        "strengths",
+        "most_important_problems",
+        "concrete_recommendations"
+    ]:
+
+        value = data.get(
+            field,
+            []
+        )
+
+        if isinstance(
+            value,
+            list
+        ):
+
+            data[field] = [
+                convert_to_text(item)
+                for item in value
+            ]
+
+        elif value:
+
+            data[field] = [
+                convert_to_text(value)
+            ]
+
+        else:
+
+            data[field] = []
+
+
+    # ========================================================
+    # IMPROVEMENT PROMPT
+    # ========================================================
+
+    data["improvement_prompt"] = (
+        convert_to_text(
+            data.get(
+                "improvement_prompt",
+                ""
+            )
+        )
+    )
+
+
+    # ========================================================
+    # DESIGNER BRIEF
+    # ========================================================
+
+    data["designer_brief"] = (
+        convert_to_text(
+            data.get(
+                "designer_brief",
+                ""
+            )
+        )
+    )
+
 
     return data
 
 
-def clean_json_text(text: str) -> str:
+# ============================================================
+# CONVERT ANY VALUE TO TEXT
+# ============================================================
+
+def convert_to_text(
+    value
+) -> str:
+
+    if value is None:
+
+        return ""
+
+    if isinstance(
+        value,
+        str
+    ):
+
+        return value
+
+    if isinstance(
+        value,
+        list
+    ):
+
+        return "\n".join(
+            str(item)
+            for item in value
+        )
+
+    if isinstance(
+        value,
+        dict
+    ):
+
+        parts = []
+
+        for key, item in value.items():
+
+            readable_key = (
+                str(key)
+                .replace(
+                    "_",
+                    " "
+                )
+                .capitalize()
+            )
+
+            if isinstance(
+                item,
+                list
+            ):
+
+                item_text = ", ".join(
+                    str(x)
+                    for x in item
+                )
+
+            elif isinstance(
+                item,
+                dict
+            ):
+
+                item_text = json.dumps(
+                    item,
+                    ensure_ascii=False
+                )
+
+            else:
+
+                item_text = str(item)
+
+            parts.append(
+                f"{readable_key}: {item_text}"
+            )
+
+        return "\n".join(
+            parts
+        )
+
+    return str(value)
+
+
+# ============================================================
+# CLEAN JSON
+# ============================================================
+
+def clean_json_text(
+    text: str
+) -> str:
 
     text = text.strip()
 
-    if text.startswith("```"):
+    if text.startswith(
+        "```"
+    ):
 
         text = re.sub(
             r"^```(?:json)?\s*",
@@ -256,11 +631,66 @@ def clean_json_text(text: str) -> str:
     return text.strip()
 
 
+# ============================================================
+# SCORE NORMALIZATION
+# ============================================================
+
+def normalize_score(
+    value
+) -> int:
+
+    if isinstance(
+        value,
+        (int, float)
+    ):
+
+        return max(
+            0,
+            min(
+                100,
+                int(value)
+            )
+        )
+
+
+    if isinstance(
+        value,
+        str
+    ):
+
+        match = re.search(
+            r"\d+(?:\.\d+)?",
+            value
+        )
+
+        if match:
+
+            return max(
+                0,
+                min(
+                    100,
+                    int(
+                        float(
+                            match.group()
+                        )
+                    )
+                )
+            )
+
+
+    return 50
+
+
+# ============================================================
+# DESIGN SCORE
+# ============================================================
+
 def calculate_design_score(
     result: AuditResult
 ) -> int:
 
     principles = [
+
         result.composition,
         result.balance,
         result.proportion_scale,
@@ -281,11 +711,14 @@ def calculate_design_score(
         result.unity_coherence,
     ]
 
+
     scores = []
 
     for principle in principles:
 
-        if principle.status == "not_applicable":
+        if principle.status == (
+            "not_applicable"
+        ):
             continue
 
         scores.append(
@@ -294,49 +727,12 @@ def calculate_design_score(
             )
         )
 
+
     if not scores:
+
         return 50
+
 
     return round(
         sum(scores) / len(scores)
     )
-
-
-def normalize_score(value) -> int:
-
-    if isinstance(
-        value,
-        (int, float)
-    ):
-        return max(
-            0,
-            min(
-                100,
-                int(value)
-            )
-        )
-
-    if isinstance(
-        value,
-        str
-    ):
-
-        match = re.search(
-            r"\d+(?:\.\d+)?",
-            value
-        )
-
-        if match:
-            return max(
-                0,
-                min(
-                    100,
-                    int(
-                        float(
-                            match.group()
-                        )
-                    )
-                )
-            )
-
-    return 50
