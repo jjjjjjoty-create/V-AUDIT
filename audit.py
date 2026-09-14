@@ -6,7 +6,7 @@ from google import genai
 from google.genai import types
 
 from prompts import SYSTEM_PROMPT
-from schemas import AuditResult
+from schemas import AuditResult, PriorityIssue
 
 
 MODEL = "gemini-2.5-flash"
@@ -24,7 +24,7 @@ def get_client():
 
 
 # ============================================================
-# ОСНОВНОЙ АНАЛИЗ ИЗОБРАЖЕНИЯ
+# ОСНОВНОЙ АНАЛИЗ
 # ============================================================
 
 def analyze_image(
@@ -59,6 +59,7 @@ def analyze_image(
     )
 
     if not response.text:
+
         raise ValueError(
             "Gemini не вернул результат."
         )
@@ -67,20 +68,16 @@ def analyze_image(
         response.text
     )
 
-    # Итоговая оценка дизайна
     result.overall_design_score = (
         calculate_design_score(result)
     )
 
-    # Оценка коммуникации
     result.communication_score = (
         normalize_score(
             result.communication_effectiveness.score
         )
     )
 
-    # Приоритетные проблемы формируем
-    # самостоятельно, а не доверяем их Gemini
     result.priority_issues = (
         build_priority_issues(result)
     )
@@ -89,7 +86,7 @@ def analyze_image(
 
 
 # ============================================================
-# ЗАПРОС К GEMINI
+# PROMPT ПОЛЬЗОВАТЕЛЯ
 # ============================================================
 
 def build_user_prompt(
@@ -138,9 +135,7 @@ score_justification
 
 ВАЖНО:
 
-evidence может содержать несколько конкретных
-визуальных доказательств.
-
+evidence может быть строкой или списком.
 Каждое доказательство должно описывать
 реально наблюдаемый элемент изображения.
 
@@ -157,8 +152,8 @@ evidence может содержать несколько конкретных
 Оценка должна соответствовать фактическому
 качеству изображения.
 
-Высокая оценка означает, что принцип реализован
-эффективно.
+Высокая оценка означает эффективную реализацию
+принципа.
 
 Низкая оценка означает наличие конкретной
 визуальной проблемы.
@@ -174,7 +169,7 @@ evidence может содержать несколько конкретных
 priority_issues НЕ формируй.
 
 Эти проблемы будут рассчитаны программой
-на основании оценок и фактических описаний.
+на основании оценок и описаний.
 
 Не возвращай:
 
@@ -183,15 +178,14 @@ communication_score
 
 Эти показатели рассчитываются программой.
 
-Не добавляй никаких комментариев
-вне JSON.
+Не добавляй комментариев вне JSON.
 
 Верни только JSON.
 """
 
 
 # ============================================================
-# ОБРАБОТКА РЕЗУЛЬТАТА GEMINI
+# РАЗБОР РЕЗУЛЬТАТА GEMINI
 # ============================================================
 
 def parse_result(
@@ -215,8 +209,6 @@ def parse_result(
             f"{error}"
         )
 
-    # Приводим результат Gemini
-    # к единому формату
     data = normalize_result_data(
         data
     )
@@ -238,7 +230,7 @@ def parse_result(
 
 
 # ============================================================
-# НОРМАЛИЗАЦИЯ ДАННЫХ
+# НОРМАЛИЗАЦИЯ
 # ============================================================
 
 def normalize_result_data(
@@ -262,12 +254,9 @@ def normalize_result_data(
         "focal_point",
         "proportion_scale",
         "communication_effectiveness",
+
     ]
 
-
-    # --------------------------------------------------------
-    # 15 принципов
-    # --------------------------------------------------------
 
     for name in principle_names:
 
@@ -282,9 +271,7 @@ def normalize_result_data(
             continue
 
 
-        # ----------------------------------------------------
         # SCORE
-        # ----------------------------------------------------
 
         principle["score"] = normalize_score(
             principle.get(
@@ -294,9 +281,7 @@ def normalize_result_data(
         )
 
 
-        # ----------------------------------------------------
         # STATUS
-        # ----------------------------------------------------
 
         status = principle.get(
             "status",
@@ -314,9 +299,7 @@ def normalize_result_data(
         principle["status"] = status
 
 
-        # ----------------------------------------------------
         # EVIDENCE
-        # ----------------------------------------------------
 
         evidence = principle.get(
             "evidence"
@@ -353,9 +336,7 @@ def normalize_result_data(
             ]
 
 
-        # ----------------------------------------------------
-        # ОБЫЧНЫЕ ТЕКСТОВЫЕ ПОЛЯ
-        # ----------------------------------------------------
+        # TEXT FIELDS
 
         for field in [
 
@@ -374,9 +355,7 @@ def normalize_result_data(
             )
 
 
-        # ----------------------------------------------------
-        # ОПЦИОНАЛЬНЫЕ ПОЛЯ
-        # ----------------------------------------------------
+        # OPTIONAL FIELDS
 
         for field in [
 
@@ -406,9 +385,7 @@ def normalize_result_data(
                 )
 
 
-    # --------------------------------------------------------
-    # СИЛЬНЫЕ СТОРОНЫ
-    # --------------------------------------------------------
+    # LISTS
 
     data["strengths"] = normalize_string_list(
         data.get(
@@ -417,10 +394,6 @@ def normalize_result_data(
         )
     )
 
-
-    # --------------------------------------------------------
-    # ГЛАВНЫЕ ПРОБЛЕМЫ
-    # --------------------------------------------------------
 
     data["most_important_problems"] = (
         normalize_string_list(
@@ -432,10 +405,6 @@ def normalize_result_data(
     )
 
 
-    # --------------------------------------------------------
-    # РЕКОМЕНДАЦИИ
-    # --------------------------------------------------------
-
     data["concrete_recommendations"] = (
         normalize_string_list(
             data.get(
@@ -446,9 +415,7 @@ def normalize_result_data(
     )
 
 
-    # --------------------------------------------------------
     # PROMPT
-    # --------------------------------------------------------
 
     data["improvement_prompt"] = (
         convert_to_text(
@@ -460,9 +427,7 @@ def normalize_result_data(
     )
 
 
-    # --------------------------------------------------------
     # DESIGNER BRIEF
-    # --------------------------------------------------------
 
     data["designer_brief"] = (
         convert_to_text(
@@ -474,9 +439,7 @@ def normalize_result_data(
     )
 
 
-    # --------------------------------------------------------
-    # Gemini priority_issues больше не используем
-    # --------------------------------------------------------
+    # Gemini priority_issues игнорируем.
 
     data["priority_issues"] = []
 
@@ -493,6 +456,7 @@ def convert_to_text(
 ) -> str:
 
     if value is None:
+
         return ""
 
 
@@ -578,6 +542,7 @@ def normalize_string_list(
 ):
 
     if value is None:
+
         return []
 
 
@@ -586,11 +551,21 @@ def normalize_string_list(
         list
     ):
 
-        return [
-            convert_to_text(item)
-            for item in value
-            if convert_to_text(item).strip()
-        ]
+        result = []
+
+        for item in value:
+
+            text = convert_to_text(
+                item
+            )
+
+            if text.strip():
+
+                result.append(
+                    text
+                )
+
+        return result
 
 
     if isinstance(
@@ -740,6 +715,7 @@ def calculate_design_score(
 
 
     if not scores:
+
         return 50
 
 
@@ -749,7 +725,7 @@ def calculate_design_score(
 
 
 # ============================================================
-# ФОРМИРОВАНИЕ ПРИОРИТЕТНЫХ ПРОБЛЕМ
+# ПРИОРИТЕТНЫЕ ПРОБЛЕМЫ
 # ============================================================
 
 def build_priority_issues(
@@ -781,10 +757,6 @@ def build_priority_issues(
 
 
     for name, principle in principles:
-
-        # ----------------------------------------------------
-        # Неприменимый критерий пропускаем
-        # ----------------------------------------------------
 
         if principle.status == (
             "not_applicable"
@@ -822,26 +794,22 @@ def build_priority_issues(
         )
 
 
-        # ----------------------------------------------------
-        # НЕТ ПРОБЛЕМЫ → НЕ СОЗДАЁМ ISSUE
-        # ----------------------------------------------------
+        # Нет проблемы → не создаём карточку
 
         if not problem:
+
             continue
 
 
-        # ----------------------------------------------------
-        # Высокая оценка не должна одновременно
-        # считаться серьёзной проблемой
-        # ----------------------------------------------------
+        # Высокая оценка → не считаем
+        # серьёзной проблемой
 
         if score >= 80:
+
             continue
 
 
-        # ----------------------------------------------------
         # Доказательство
-        # ----------------------------------------------------
 
         evidence = ""
 
@@ -859,12 +827,11 @@ def build_priority_issues(
 
 
         if not evidence:
+
             continue
 
 
-        # ----------------------------------------------------
         # Приоритет
-        # ----------------------------------------------------
 
         if score < 40:
 
@@ -883,9 +850,7 @@ def build_priority_issues(
             priority = "low"
 
 
-        # ----------------------------------------------------
-        # Влияние на восприятие
-        # ----------------------------------------------------
+        # Влияние
 
         perceptual_impact = (
             principle.perceptual_effect
@@ -901,9 +866,7 @@ def build_priority_issues(
             )
 
 
-        # ----------------------------------------------------
         # Действие
-        # ----------------------------------------------------
 
         action = recommendation
 
@@ -916,26 +879,33 @@ def build_priority_issues(
             )
 
 
+        # ----------------------------------------------------
+        # ВАЖНО:
+        # создаём PriorityIssue, а не dict
+        # ----------------------------------------------------
+
         issues.append(
-            {
-                "priority": priority,
+            PriorityIssue(
 
-                "principle": name,
+                priority=priority,
 
-                "issue": problem,
+                principle=name,
 
-                "evidence": evidence,
+                issue=problem,
 
-                "perceptual_impact": perceptual_impact,
+                evidence=evidence,
 
-                "action": action,
-            }
+                perceptual_impact=(
+                    perceptual_impact
+                ),
+
+                action=action,
+
+            )
         )
 
 
-    # --------------------------------------------------------
-    # Сначала самые серьёзные проблемы
-    # --------------------------------------------------------
+    # Сортировка
 
     priority_order = {
 
@@ -949,17 +919,18 @@ def build_priority_issues(
 
     issues.sort(
         key=lambda item: (
+
             priority_order.get(
-                item["priority"],
+                item.priority,
                 4
             ),
-            item["principle"],
+
+            item.principle,
+
         )
     )
 
 
-    # --------------------------------------------------------
-    # Показываем максимум 5
-    # --------------------------------------------------------
+    # Максимум 5 действительно важных проблем
 
     return issues[:5]
