@@ -1,9 +1,10 @@
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class DesignPrinciple(BaseModel):
-    score: int = 50
+    score: int = Field(default=50, ge=0, le=100)
     status: str = "applicable"
 
     observation: str = ""
@@ -21,52 +22,100 @@ class DesignPrinciple(BaseModel):
 class PriorityIssue(BaseModel):
     priority: str = "medium"
     principle: str = ""
+
     issue: str = ""
     evidence: str = ""
+
     perceptual_impact: str = ""
     action: str = ""
 
 
 class AuditResult(BaseModel):
 
-    # Итоговые показатели рассчитываются программно
-    overall_design_score: int = 50
-    communication_score: int = 50
+    # ========================================================
+    # OVERALL SCORES
+    # ========================================================
 
-    # 1. Композиционная организация
-    composition: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    balance: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    proportion_scale: DesignPrinciple = Field(default_factory=DesignPrinciple)
+    overall_design_score: int = Field(
+        default=50,
+        ge=0,
+        le=100
+    )
 
-    # 2. Иерархия и внимание
-    visual_hierarchy: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    focal_point: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    contrast: DesignPrinciple = Field(default_factory=DesignPrinciple)
+    communication_score: int = Field(
+        default=50,
+        ge=0,
+        le=100
+    )
 
-    # 3. Пространственная организация
-    negative_space: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    alignment: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    proximity_grouping: DesignPrinciple = Field(default_factory=DesignPrinciple)
+    # ========================================================
+    # 15 DESIGN PRINCIPLES
+    # ========================================================
 
-    # 4. Визуальные средства
-    typography: DesignPrinciple = Field(default_factory=DesignPrinciple)
-    color: DesignPrinciple = Field(default_factory=DesignPrinciple)
+    composition: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    visual_hierarchy: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    balance: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    contrast: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    typography: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    color: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    negative_space: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    alignment: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    proximity_grouping: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    repetition_rhythm: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
+    unity_coherence: DesignPrinciple = Field(
+        default_factory=DesignPrinciple
+    )
+
     readability_accessibility: DesignPrinciple = Field(
         default_factory=DesignPrinciple
     )
 
-    # 5. Целостность и коммуникация
-    repetition_rhythm: DesignPrinciple = Field(
+    focal_point: DesignPrinciple = Field(
         default_factory=DesignPrinciple
     )
-    unity_coherence: DesignPrinciple = Field(
+
+    proportion_scale: DesignPrinciple = Field(
         default_factory=DesignPrinciple
     )
+
     communication_effectiveness: DesignPrinciple = Field(
         default_factory=DesignPrinciple
     )
 
-    # Итоговые результаты
+    # ========================================================
+    # SYNTHESIS
+    # ========================================================
+
     priority_issues: List[PriorityIssue] = Field(
         default_factory=list
     )
