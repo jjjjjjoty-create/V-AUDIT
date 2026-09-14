@@ -13,7 +13,7 @@ MODEL = "gemini-2.5-flash"
 
 
 # ============================================================
-# GEMINI CLIENT
+# ПОДКЛЮЧЕНИЕ GEMINI
 # ============================================================
 
 def get_client():
@@ -24,7 +24,7 @@ def get_client():
 
 
 # ============================================================
-# MAIN ANALYSIS
+# ОСНОВНОЙ АНАЛИЗ ИЗОБРАЖЕНИЯ
 # ============================================================
 
 def analyze_image(
@@ -59,38 +59,37 @@ def analyze_image(
     )
 
     if not response.text:
-
         raise ValueError(
             "Gemini не вернул результат."
         )
-
-    # --------------------------------------------------------
-    # Получаем JSON
-    # --------------------------------------------------------
 
     result = parse_result(
         response.text
     )
 
-    # --------------------------------------------------------
-    # Рассчитываем итоговые показатели
-    # --------------------------------------------------------
-
+    # Итоговая оценка дизайна
     result.overall_design_score = (
         calculate_design_score(result)
     )
 
+    # Оценка коммуникации
     result.communication_score = (
         normalize_score(
             result.communication_effectiveness.score
         )
     )
 
+    # Приоритетные проблемы формируем
+    # самостоятельно, а не доверяем их Gemini
+    result.priority_issues = (
+        build_priority_issues(result)
+    )
+
     return result
 
 
 # ============================================================
-# USER PROMPT
+# ЗАПРОС К GEMINI
 # ============================================================
 
 def build_user_prompt(
@@ -111,7 +110,7 @@ def build_user_prompt(
     )
 
     return f"""
-Проведи полный структурированный аудит
+Проведи профессиональный визуальный аудит
 предоставленного графического материала.
 
 КОММУНИКАТИВНАЯ ЗАДАЧА:
@@ -121,7 +120,7 @@ def build_user_prompt(
 {action}
 
 Если коммуникативная задача или действие
-не предоставлены, не придумывай их.
+не предоставлены, НЕ придумывай их.
 
 Проанализируй изображение по всем 15 критериям.
 
@@ -137,20 +136,45 @@ problem
 recommendation
 score_justification
 
-Для evidence допустимы как одна конкретная
-строка-доказательство, так и список доказательств.
+ВАЖНО:
+
+evidence может содержать несколько конкретных
+визуальных доказательств.
+
+Каждое доказательство должно описывать
+реально наблюдаемый элемент изображения.
+
+НЕ придумывай элементы, которых нет
+на изображении.
+
+Если существенной проблемы по критерию нет,
+поле problem должно быть null,
+а recommendation должно быть null.
+
+Не называй критерий проблемным только
+для того, чтобы заполнить поле.
+
+Оценка должна соответствовать фактическому
+качеству изображения.
+
+Высокая оценка означает, что принцип реализован
+эффективно.
+
+Низкая оценка означает наличие конкретной
+визуальной проблемы.
 
 Верни:
 
-- ровно 3 strengths;
-- ровно 3 most_important_problems;
-- ровно 3 concrete_recommendations;
-- priority_issues;
+- strengths;
+- most_important_problems;
+- concrete_recommendations;
 - improvement_prompt;
 - designer_brief.
 
-designer_brief может быть как обычным текстом,
-так и структурированным объектом.
+priority_issues НЕ формируй.
+
+Эти проблемы будут рассчитаны программой
+на основании оценок и фактических описаний.
 
 Не возвращай:
 
@@ -167,10 +191,12 @@ communication_score
 
 
 # ============================================================
-# PARSE GEMINI RESULT
+# ОБРАБОТКА РЕЗУЛЬТАТА GEMINI
 # ============================================================
 
-def parse_result(raw_text: str):
+def parse_result(
+    raw_text: str
+):
 
     cleaned = clean_json_text(
         raw_text
@@ -189,10 +215,8 @@ def parse_result(raw_text: str):
             f"{error}"
         )
 
-    # --------------------------------------------------------
-    # Нормализуем ответ ДО Pydantic
-    # --------------------------------------------------------
-
+    # Приводим результат Gemini
+    # к единому формату
     data = normalize_result_data(
         data
     )
@@ -214,7 +238,7 @@ def parse_result(raw_text: str):
 
 
 # ============================================================
-# NORMALIZATION
+# НОРМАЛИЗАЦИЯ ДАННЫХ
 # ============================================================
 
 def normalize_result_data(
@@ -224,34 +248,32 @@ def normalize_result_data(
     principle_names = [
 
         "composition",
-        "balance",
-        "proportion_scale",
-
         "visual_hierarchy",
-        "focal_point",
+        "balance",
         "contrast",
-
+        "typography",
+        "color",
         "negative_space",
         "alignment",
         "proximity_grouping",
-
-        "typography",
-        "color",
-        "readability_accessibility",
-
         "repetition_rhythm",
         "unity_coherence",
+        "readability_accessibility",
+        "focal_point",
+        "proportion_scale",
         "communication_effectiveness",
     ]
 
 
     # --------------------------------------------------------
-    # Нормализуем 15 принципов
+    # 15 принципов
     # --------------------------------------------------------
 
     for name in principle_names:
 
-        principle = data.get(name)
+        principle = data.get(
+            name
+        )
 
         if not isinstance(
             principle,
@@ -260,9 +282,9 @@ def normalize_result_data(
             continue
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # SCORE
-        # ====================================================
+        # ----------------------------------------------------
 
         principle["score"] = normalize_score(
             principle.get(
@@ -272,9 +294,9 @@ def normalize_result_data(
         )
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # STATUS
-        # ====================================================
+        # ----------------------------------------------------
 
         status = principle.get(
             "status",
@@ -292,9 +314,9 @@ def normalize_result_data(
         principle["status"] = status
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # EVIDENCE
-        # ====================================================
+        # ----------------------------------------------------
 
         evidence = principle.get(
             "evidence"
@@ -331,37 +353,36 @@ def normalize_result_data(
             ]
 
 
-        # ====================================================
-        # TEXT FIELDS
-        # ====================================================
+        # ----------------------------------------------------
+        # ОБЫЧНЫЕ ТЕКСТОВЫЕ ПОЛЯ
+        # ----------------------------------------------------
 
-        text_fields = [
+        for field in [
 
             "observation",
             "rationale",
             "perceptual_effect",
             "score_justification",
-        ]
 
-        for field in text_fields:
+        ]:
 
-            value = principle.get(
-                field,
-                ""
-            )
-
-            principle[field] = (
-                convert_to_text(value)
+            principle[field] = convert_to_text(
+                principle.get(
+                    field,
+                    ""
+                )
             )
 
 
-        # ====================================================
-        # OPTIONAL FIELDS
-        # ====================================================
+        # ----------------------------------------------------
+        # ОПЦИОНАЛЬНЫЕ ПОЛЯ
+        # ----------------------------------------------------
 
         for field in [
+
             "problem",
-            "recommendation"
+            "recommendation",
+
         ]:
 
             value = principle.get(
@@ -374,124 +395,60 @@ def normalize_result_data(
 
             else:
 
+                converted = convert_to_text(
+                    value
+                )
+
                 principle[field] = (
-                    convert_to_text(value)
+                    converted
+                    if converted.strip()
+                    else None
                 )
 
 
-    # ========================================================
-    # PRIORITY ISSUES
-    # ========================================================
+    # --------------------------------------------------------
+    # СИЛЬНЫЕ СТОРОНЫ
+    # --------------------------------------------------------
 
-    priority_issues = data.get(
-        "priority_issues",
-        []
-    )
-
-    if not isinstance(
-        priority_issues,
-        list
-    ):
-
-        priority_issues = []
-
-    normalized_issues = []
-
-    for issue in priority_issues:
-
-        if not isinstance(
-            issue,
-            dict
-        ):
-            continue
-
-        normalized_issues.append({
-
-            "priority": convert_to_text(
-                issue.get(
-                    "priority",
-                    "medium"
-                )
-            ),
-
-            "principle": convert_to_text(
-                issue.get(
-                    "principle",
-                    ""
-                )
-            ),
-
-            "issue": convert_to_text(
-                issue.get(
-                    "issue",
-                    ""
-                )
-            ),
-
-            "evidence": convert_to_text(
-                issue.get(
-                    "evidence",
-                    ""
-                )
-            ),
-
-            "perceptual_impact": convert_to_text(
-                issue.get(
-                    "perceptual_impact",
-                    ""
-                )
-            ),
-
-            "action": convert_to_text(
-                issue.get(
-                    "action",
-                    ""
-                )
-            )
-        })
-
-    data["priority_issues"] = normalized_issues
-
-
-    # ========================================================
-    # LISTS
-    # ========================================================
-
-    for field in [
-        "strengths",
-        "most_important_problems",
-        "concrete_recommendations"
-    ]:
-
-        value = data.get(
-            field,
+    data["strengths"] = normalize_string_list(
+        data.get(
+            "strengths",
             []
         )
-
-        if isinstance(
-            value,
-            list
-        ):
-
-            data[field] = [
-                convert_to_text(item)
-                for item in value
-            ]
-
-        elif value:
-
-            data[field] = [
-                convert_to_text(value)
-            ]
-
-        else:
-
-            data[field] = []
+    )
 
 
-    # ========================================================
-    # IMPROVEMENT PROMPT
-    # ========================================================
+    # --------------------------------------------------------
+    # ГЛАВНЫЕ ПРОБЛЕМЫ
+    # --------------------------------------------------------
+
+    data["most_important_problems"] = (
+        normalize_string_list(
+            data.get(
+                "most_important_problems",
+                []
+            )
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # РЕКОМЕНДАЦИИ
+    # --------------------------------------------------------
+
+    data["concrete_recommendations"] = (
+        normalize_string_list(
+            data.get(
+                "concrete_recommendations",
+                []
+            )
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # PROMPT
+    # --------------------------------------------------------
 
     data["improvement_prompt"] = (
         convert_to_text(
@@ -503,9 +460,9 @@ def normalize_result_data(
     )
 
 
-    # ========================================================
+    # --------------------------------------------------------
     # DESIGNER BRIEF
-    # ========================================================
+    # --------------------------------------------------------
 
     data["designer_brief"] = (
         convert_to_text(
@@ -517,11 +474,18 @@ def normalize_result_data(
     )
 
 
+    # --------------------------------------------------------
+    # Gemini priority_issues больше не используем
+    # --------------------------------------------------------
+
+    data["priority_issues"] = []
+
+
     return data
 
 
 # ============================================================
-# CONVERT ANY VALUE TO TEXT
+# ПРЕОБРАЗОВАНИЕ В ТЕКСТ
 # ============================================================
 
 def convert_to_text(
@@ -529,8 +493,8 @@ def convert_to_text(
 ) -> str:
 
     if value is None:
-
         return ""
+
 
     if isinstance(
         value,
@@ -538,6 +502,7 @@ def convert_to_text(
     ):
 
         return value
+
 
     if isinstance(
         value,
@@ -548,6 +513,7 @@ def convert_to_text(
             str(item)
             for item in value
         )
+
 
     if isinstance(
         value,
@@ -599,11 +565,55 @@ def convert_to_text(
             parts
         )
 
+
     return str(value)
 
 
 # ============================================================
-# CLEAN JSON
+# СПИСОК СТРОК
+# ============================================================
+
+def normalize_string_list(
+    value
+):
+
+    if value is None:
+        return []
+
+
+    if isinstance(
+        value,
+        list
+    ):
+
+        return [
+            convert_to_text(item)
+            for item in value
+            if convert_to_text(item).strip()
+        ]
+
+
+    if isinstance(
+        value,
+        str
+    ):
+
+        if value.strip():
+
+            return [
+                value.strip()
+            ]
+
+        return []
+
+
+    return [
+        convert_to_text(value)
+    ]
+
+
+# ============================================================
+# ОЧИСТКА JSON
 # ============================================================
 
 def clean_json_text(
@@ -611,6 +621,7 @@ def clean_json_text(
 ) -> str:
 
     text = text.strip()
+
 
     if text.startswith(
         "```"
@@ -628,11 +639,12 @@ def clean_json_text(
             text
         )
 
+
     return text.strip()
 
 
 # ============================================================
-# SCORE NORMALIZATION
+# НОРМАЛИЗАЦИЯ ОЦЕНКИ
 # ============================================================
 
 def normalize_score(
@@ -682,7 +694,7 @@ def normalize_score(
 
 
 # ============================================================
-# DESIGN SCORE
+# ИТОГОВАЯ ОЦЕНКА ДИЗАЙНА
 # ============================================================
 
 def calculate_design_score(
@@ -692,33 +704,32 @@ def calculate_design_score(
     principles = [
 
         result.composition,
-        result.balance,
-        result.proportion_scale,
-
         result.visual_hierarchy,
-        result.focal_point,
+        result.balance,
         result.contrast,
-
+        result.typography,
+        result.color,
         result.negative_space,
         result.alignment,
         result.proximity_grouping,
-
-        result.typography,
-        result.color,
-        result.readability_accessibility,
-
         result.repetition_rhythm,
         result.unity_coherence,
+        result.readability_accessibility,
+        result.focal_point,
+        result.proportion_scale,
+
     ]
 
 
     scores = []
+
 
     for principle in principles:
 
         if principle.status == (
             "not_applicable"
         ):
+
             continue
 
         scores.append(
@@ -729,10 +740,226 @@ def calculate_design_score(
 
 
     if not scores:
-
         return 50
 
 
     return round(
         sum(scores) / len(scores)
     )
+
+
+# ============================================================
+# ФОРМИРОВАНИЕ ПРИОРИТЕТНЫХ ПРОБЛЕМ
+# ============================================================
+
+def build_priority_issues(
+    result: AuditResult
+):
+
+    principles = [
+
+        ("Композиция", result.composition),
+        ("Визуальная иерархия", result.visual_hierarchy),
+        ("Баланс", result.balance),
+        ("Контраст", result.contrast),
+        ("Типографика", result.typography),
+        ("Цвет", result.color),
+        ("Негативное пространство", result.negative_space),
+        ("Выравнивание", result.alignment),
+        ("Близость и группировка", result.proximity_grouping),
+        ("Повтор и ритм", result.repetition_rhythm),
+        ("Единство и визуальная согласованность", result.unity_coherence),
+        ("Читаемость и доступность", result.readability_accessibility),
+        ("Фокусная точка", result.focal_point),
+        ("Пропорции и масштаб", result.proportion_scale),
+        ("Коммуникативная эффективность", result.communication_effectiveness),
+
+    ]
+
+
+    issues = []
+
+
+    for name, principle in principles:
+
+        # ----------------------------------------------------
+        # Неприменимый критерий пропускаем
+        # ----------------------------------------------------
+
+        if principle.status == (
+            "not_applicable"
+        ):
+
+            continue
+
+
+        score = normalize_score(
+            principle.score
+        )
+
+
+        problem = (
+            principle.problem
+            or ""
+        ).strip()
+
+
+        recommendation = (
+            principle.recommendation
+            or ""
+        ).strip()
+
+
+        observation = (
+            principle.observation
+            or ""
+        ).strip()
+
+
+        evidence_list = (
+            principle.evidence
+            or []
+        )
+
+
+        # ----------------------------------------------------
+        # НЕТ ПРОБЛЕМЫ → НЕ СОЗДАЁМ ISSUE
+        # ----------------------------------------------------
+
+        if not problem:
+            continue
+
+
+        # ----------------------------------------------------
+        # Высокая оценка не должна одновременно
+        # считаться серьёзной проблемой
+        # ----------------------------------------------------
+
+        if score >= 80:
+            continue
+
+
+        # ----------------------------------------------------
+        # Доказательство
+        # ----------------------------------------------------
+
+        evidence = ""
+
+
+        if evidence_list:
+
+            evidence = str(
+                evidence_list[0]
+            ).strip()
+
+
+        if not evidence:
+
+            evidence = observation
+
+
+        if not evidence:
+            continue
+
+
+        # ----------------------------------------------------
+        # Приоритет
+        # ----------------------------------------------------
+
+        if score < 40:
+
+            priority = "critical"
+
+        elif score < 60:
+
+            priority = "high"
+
+        elif score < 75:
+
+            priority = "medium"
+
+        else:
+
+            priority = "low"
+
+
+        # ----------------------------------------------------
+        # Влияние на восприятие
+        # ----------------------------------------------------
+
+        perceptual_impact = (
+            principle.perceptual_effect
+            or ""
+        ).strip()
+
+
+        if not perceptual_impact:
+
+            perceptual_impact = (
+                "Проблема может снижать "
+                "эффективность визуальной коммуникации."
+            )
+
+
+        # ----------------------------------------------------
+        # Действие
+        # ----------------------------------------------------
+
+        action = recommendation
+
+
+        if not action:
+
+            action = (
+                "Скорректировать визуальное решение "
+                "с учётом выявленной проблемы."
+            )
+
+
+        issues.append(
+            {
+                "priority": priority,
+
+                "principle": name,
+
+                "issue": problem,
+
+                "evidence": evidence,
+
+                "perceptual_impact": perceptual_impact,
+
+                "action": action,
+            }
+        )
+
+
+    # --------------------------------------------------------
+    # Сначала самые серьёзные проблемы
+    # --------------------------------------------------------
+
+    priority_order = {
+
+        "critical": 0,
+        "high": 1,
+        "medium": 2,
+        "low": 3,
+
+    }
+
+
+    issues.sort(
+        key=lambda item: (
+            priority_order.get(
+                item["priority"],
+                4
+            ),
+            item["principle"],
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Показываем максимум 5
+    # --------------------------------------------------------
+
+    return issues[:5]
